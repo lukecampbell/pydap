@@ -29,7 +29,7 @@ def dispatch(var, level=0):
     types = [
             (DatasetType, dataset),
             (GridType, base),
-            (SequenceType, sequence),
+            #(SequenceType, sequence),
             (StructureType, structure),
             (BaseType, base),
     ]
