@@ -32,8 +32,8 @@ def quote(name):
         'Period%2E'
 
     """
-    safe = '_!~*\'-"'
-    return urllib.quote(name, safe=safe).replace('.', '%2E')
+    safe = '%_!~*\'-"'
+    return urllib.quote(name.encode('utf-8'), safe=safe).replace('.', '%2E')
 
 
 def encode(obj):
@@ -44,6 +44,8 @@ def encode(obj):
     try:
         return '%.6g' % obj
     except:
+        if isinstance(obj, unicode):
+            obj = obj.encode('utf-8')
         return '"%s"' % obj.replace('"', r'\"')
 
 
