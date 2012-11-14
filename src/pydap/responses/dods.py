@@ -86,7 +86,7 @@ def sequence(var):
                 padded = []
                 for value in record:
                     if isinstance(value, basestring):
-                        length = len(value)
+                        length = len(value) or 1
                         out.append(length)
                         padded.append(length + (-length % 4))
                     out.append(value)
