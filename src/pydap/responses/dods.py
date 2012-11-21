@@ -179,6 +179,8 @@ def calculate_size(dataset):
             size = np.prod(var.shape)
             if var.data.dtype == np.byte:
                 length += size + (-size % 4)
+            elif var.data.dtype == np.short:
+                length += size * 4
             else:
                 length += size * var.data.dtype.itemsize
 
