@@ -395,7 +395,7 @@ class SequenceType(StructureType):
     def _set_data(self, data):
         self._data = data
         for child in self.children():
-            tokens = child.id.split('.')[1:]
+            tokens = child.id[len(self.id)+1:].split('.')
             child.data = reduce(operator.getitem, [data] + tokens)
 
     def _get_data(self):
