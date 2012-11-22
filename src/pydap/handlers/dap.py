@@ -1,35 +1,53 @@
 from urlparse import urlsplit, urlunsplit
+import operator
 
 import numpy as np
 import requests
 
-from pydap.lib import encode, combine_slices, fix_slice, hyperslab, START_OF_SEQUENCE, END_OF_SEQUENCE
-from pydap.handlers.lib import ConstraintExpression, BaseHandler
-from pydap.responses.dods import typemap
+from pydap.model import *
+from pydap.lib import encode, combine_slices, fix_slice, hyperslab, START_OF_SEQUENCE
+from pydap.handlers.lib import ConstraintExpression, BaseHandler, walk
 from pydap.parsers.dds import build_dataset
-from pydap.parsers.das import add_attributes
+from pydap.parsers.das import parse_das
 
 
 class DAPHandler(BaseHandler):
     def __init__(self, url):
+        # download DDS/DAS
         scheme, netloc, path, query, fragment = urlsplit(url)
-        ddsurl = urlunsplit(
-                (scheme, netloc, path + '.dds', query, fragment))
-        dasurl = urlunsplit(
-                (scheme, netloc, path + '.das', query, fragment))
+        ddsurl = urlunsplit((scheme, netloc, path + '.dds', query, fragment))
+        dds = requests.get(ddsurl).text.encode('utf-8')
+        dasurl = urlunsplit((scheme, netloc, path + '.das', query, fragment))
+        das = requests.get(dasurl).text.encode('utf-8')
 
-        dds = requests.get(ddsurl).text
-        das = requests.get(dasurl).text
-
+        # build the dataset from the DDS
         self.dataset = build_dataset(dds)
-        add_attributes(self.dataset, das)
+
+        # and add attributes from the DAS
+        attributes = parse_das(das)
+        for var in walk(self.dataset):
+            # attributes can be flat, eg, "foo.bar" : {...}
+            if var.id in attributes:
+                var.attributes.update(attributes[var.id])
+            # or nested, eg, "foo" : { "bar" : {...} }
+            try:
+                var.attributes.update(
+                    reduce(operator.getitem, [attributes] + var.id.split('.')))
+            except KeyError:
+                pass
+
+        # now add data proxies
+        for var in walk(self.dataset, BaseType):
+            var.data = BaseProxy(url, var.id, var.dtype, var.shape)
+        for var in walk(self.dataset, SequenceType):
+            var.data = SequenceProxy(url, var.id, var.dtype)
 
 
 class BaseProxy(object):
     def __init__(self, baseurl, id, dtype, shape, slice_=None):
         self.baseurl = baseurl
         self.id = id
-        self.dtype = np.dtype(dtype)
+        self.dtype = dtype
         self.shape = shape
         self.slice = slice_ or (slice(None),)
 
@@ -125,13 +143,13 @@ class SequenceProxy(object):
         if isinstance(key, basestring):
             out.id = '{id}.{child}'.format(id=self.id, child=key)
             out.descr = apply_to_list(
-                    lambda l, key=key: [(k, v) for k, v in l if k==key][0], 
+                    (lambda l, key=key: (key, dict(l)[key])),
                     out.descr)
 
         # return a new object with requested columns
         elif isinstance(key, list):
             out.descr = apply_to_list(
-                    lambda l, key=key: [(k, v) for k, v in l if k in key],
+                    (lambda l, key=key: [(k, v) for k, v in l if k in key]),
                     out.descr)
 
         # return a copy with the added constraints
@@ -227,6 +245,10 @@ def unpack_sequence(r, descr):
                     else:
                         sub = descr[1]
                     rec.append(tuple(unpack_sequence(r, sub)))
+                elif d.char == 'B':
+                    data = np.fromstring(r.raw.read(d.itemsize), d)[0]
+                    r.raw.read(3)
+                    rec.append(data)
                 else:
                     data = np.fromstring(r.raw.read(d.itemsize), d)[0]
                     rec.append(data)
@@ -234,4 +256,16 @@ def unpack_sequence(r, descr):
                 rec = rec[0]
             yield tuple(rec)
             marker = r.raw.read(4)
+
+
+if __name__ == '__main__':
+    seq = SequenceProxy('http://test.opendap.org:8080/dods/dts/test.07', 'types', 
+            [('b', 'B'), ('i32', '>i'), ('ui32', '>I'), ('i16', '>i'), ('ui16', '>I'), ('f32', '>f'), ('f64', '>d'), ('s', 'S'), ('u', 'S')])
+    for rec in seq:
+        print rec
+
+    seq = SequenceProxy('http://test.opendap.org:8080/dods/dts/NestedSeq', 'person1',
+            [('age', '>i'), ('stuff', [('foo', '>i')])])
+    for rec in seq:
+        print rec
 
