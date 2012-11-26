@@ -8,17 +8,17 @@ from pydap.model import *
 
 
 typemap = {
-    'byte'    : np.dtype('B'),
-    'int'     : np.dtype('>i'),
-    'uint'    : np.dtype('>I'),
-    'int16'   : np.dtype('>i'),
-    'uint16'  : np.dtype('>I'),
-    'int32'   : np.dtype('>i'),
-    'uint32'  : np.dtype('>I'),
-    'float32' : np.dtype('>f'),
-    'float64' : np.dtype('>d'),
-    'string'  : np.dtype('S'),
-    'url'     : np.dtype('S'),
+    'byte'    : 'B',
+    'int'     : '>i',
+    'uint'    : '>I',
+    'int16'   : '>i',
+    'uint16'  : '>I',
+    'int32'   : '>i',
+    'uint32'  : '>I',
+    'float32' : '>f',
+    'float64' : '>d',
+    'string'  : '|S1',
+    'url'     : '|S1',
     }
 constructors = ('grid', 'sequence', 'structure')
 name_regexp = '[\w%!~"\'\*-]+'
@@ -48,6 +48,8 @@ class DDSParser(SimpleParser):
         dataset._set_id(dataset.name)
         self.consume(';')
 
+        dataset.descr = dataset.name, [c.descr for c in dataset.children()], ()
+
         return dataset
 
     def declaration(self):
@@ -67,11 +69,12 @@ class DDSParser(SimpleParser):
         dtype = typemap[type.lower()]
         name = unquote(self.consume('[^;\[]+'))
         shape, dimensions = self.dimensions()
-        data = Container(dtype=dtype, shape=shape)
-
         self.consume(';')
 
-        return BaseType(name, data, dimensions)
+        var = BaseType(name, dimensions=dimensions)
+        var.descr = name, dtype, shape
+
+        return var
 
     def dimensions(self):
         shape = []
@@ -100,9 +103,7 @@ class DDSParser(SimpleParser):
         sequence.name = unquote(self.consume('[^;]+'))
         self.consume(';')
 
-        # build dtype from the str attribute if available, else
-        # use the whole dtype since it's a list
-        sequence.dtype = [(c.name, to_descr(c.dtype)) for c in sequence.children()]
+        sequence.descr = sequence.name, [c.descr for c in sequence.children()], ()
 
         return sequence
 
@@ -119,7 +120,7 @@ class DDSParser(SimpleParser):
         structure.name = unquote(self.consume('[^;]+'))
         self.consume(';')
 
-        structure.dtype = [(c.name, to_descr(c.dtype)) for c in structure.children()]
+        structure.descr = structure.name, [c.descr for c in structure.children()], ()
 
         return structure
 
@@ -142,25 +143,62 @@ class DDSParser(SimpleParser):
 
         grid.name = unquote(self.consume('[^;]+'))
         self.consume(';')
+
+        grid.descr = grid.name, [c.descr for c in grid.children()], ()
+
         return grid
-
-
-def to_descr(dtype):
-    if isinstance(dtype, list):
-        return dtype
-    else:
-        return dtype.str.replace('|S0', 'S')
-
-
-class Container(object):
-    """
-    Placeholder container for data.
-
-    """
-    def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            setattr(self, k, v)
 
 
 def build_dataset(dds):
     return DDSParser(dds).parse()
+
+
+if __name__ == '__main__':
+    dds = """Dataset {
+    Sequence {
+        Float32 lon;
+        Float64 time;
+        Float32 lat;
+        Int32 _id;
+        Sequence {
+            Float32 NH3-N;
+            Float32 SiO3-;
+            Float32 PO4-P;
+            Float32 NO2-N;
+            Float32 NO3-N;
+            Float32 depth;
+        } profile;
+        Structure {
+            String CAST;
+            String COORD_SYSTEM;
+            String NODC-COUNTRYCODE;
+            String Conventions;
+            String INST_TYPE;
+            String DATA_CMNT;
+            String DATA_ORIGIN;
+            String CREATION_DATE;
+            String DATA_SUBTYPE;
+            String DATA_TYPE;
+            String OCL-STATION-NUM;
+            String BOTTLE;
+        } attributes;
+        Structure {
+            Structure {
+                Float32 valid_range[2];
+            } depth;
+        } variable_attributes;
+    } location;
+    Structure {
+        Float32 lon_range[2];
+        Float32 lat_range[2];
+        Float32 depth_range[2];
+        Float64 time_range[2];
+    } constrained_ranges;
+} 200509KFHC_nutrient;"""
+
+    print build_dataset(dds).location.descr
+
+    import requests
+    print build_dataset(requests.get('http://test.opendap.org:8080/dods/dts/test.07.dds').text.encode('utf-8')).types.descr
+    print build_dataset(requests.get('http://sfbeams.sfsu.edu:8080/opendap/sfbeams/data_met/real-time/sfb_MET_PUF.dat.dds').text.encode('utf-8'))['MET-REALTIME_CSV'].descr
+    print build_dataset(requests.get('http://test.opendap.org:8080/dods/dts/NestedSeq.dds').text.encode('utf-8')).person1.descr
