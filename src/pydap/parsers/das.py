@@ -1,8 +1,10 @@
 import re
 import ast
+import operator
 
 from pydap.parsers import SimpleParser
 from pydap.model import *
+from pydap.lib import walk
 
 
 atomic = ('byte', 'int', 'uint', 'int16', 'uint16', 'int32', 'uint32', 'float32', 'float64', 'string', 'url')
@@ -75,7 +77,31 @@ class DASParser(SimpleParser):
 
 
 def parse_das(das):
+    """
+    Parse the DAS into nested dictionaries.
+
+    """
     return DASParser(das).parse()
+
+
+def add_attributes(dataset, attributes):
+    """
+    Add attributes from a parsed DAS to a dataset.
+
+    """
+    for var in walk(dataset):
+        # attributes can be flat, eg, "foo.bar" : {...}
+        if var.id in attributes:
+            var.attributes.update(attributes[var.id])
+        # or nested, eg, "foo" : { "bar" : {...} }
+        try:
+            var.attributes.update(
+                    reduce(operator.getitem, [attributes] + var.id.split('.')))
+        except KeyError:
+            pass
+
+    return dataset
+
 
 
 if __name__ == '__main__':

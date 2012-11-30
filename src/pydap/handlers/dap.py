@@ -1,14 +1,14 @@
 from urlparse import urlsplit, urlunsplit
-import operator
+from StringIO import StringIO
 
 import numpy as np
 import requests
 
 from pydap.model import *
-from pydap.lib import encode, combine_slices, fix_slice, hyperslab, START_OF_SEQUENCE
-from pydap.handlers.lib import ConstraintExpression, BaseHandler, walk
+from pydap.lib import encode, combine_slices, fix_slice, hyperslab, START_OF_SEQUENCE, END_OF_SEQUENCE, walk
+from pydap.handlers.lib import ConstraintExpression, BaseHandler
 from pydap.parsers.dds import build_dataset
-from pydap.parsers.das import parse_das
+from pydap.parsers.das import parse_das, add_attributes
 
 
 class DAPHandler(BaseHandler):
@@ -20,21 +20,9 @@ class DAPHandler(BaseHandler):
         dasurl = urlunsplit((scheme, netloc, path + '.das', query, fragment))
         das = requests.get(dasurl).text.encode('utf-8')
 
-        # build the dataset from the DDS
+        # build the dataset from the DDS and add attributes from the DAS
         self.dataset = build_dataset(dds)
-
-        # and add attributes from the DAS
-        attributes = parse_das(das)
-        for var in walk(self.dataset):
-            # attributes can be flat, eg, "foo.bar" : {...}
-            if var.id in attributes:
-                var.attributes.update(attributes[var.id])
-            # or nested, eg, "foo" : { "bar" : {...} }
-            try:
-                var.attributes.update(
-                    reduce(operator.getitem, [attributes] + var.id.split('.')))
-            except KeyError:
-                pass
+        add_attributes(self.dataset, parse_das(das))
 
         # now add data proxies
         for var in walk(self.dataset, BaseType):
@@ -273,7 +261,7 @@ def unpack_children(buf, descr):
             out.append(buf.read(n))
             buf.read(-n % 4)
         elif d.char == 'V':
-            if buf.peek(4) == START_OF_SEQUENCE:
+            if buf.peek(4) in [START_OF_SEQUENCE, END_OF_SEQUENCE]:
                 out.append(tuple(unpack_sequence(buf, descr)))
             else:
                 out.append(tuple(unpack_children(buf, descr)))
@@ -290,6 +278,17 @@ def unpack_children(buf, descr):
                 data = np.fromstring(buf.read(d.itemsize), d)[0]
             out.append(data)
     return out
+
+
+def unpack_data(xdrdata, dataset):
+    """
+    Unpack a string of encoded data.
+
+    """
+    buf = StringIO(xdrdata)
+    buf.seek(0)
+    buf = BufferedReader(buf)
+    return unpack_children(buf, dataset.descr)
 
 
 def fix(descr):
