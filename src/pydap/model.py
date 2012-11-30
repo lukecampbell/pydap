@@ -267,6 +267,13 @@ class StructureType(DapType):
 
     def keys(self):
         return self._keys[:]
+
+    def _get_data(self):
+        return [var.data for var in self.children()]
+    def _set_data(self, data):
+        for col, var in zip(data, self.children()):
+            var.data = col
+    data = property(_get_data, _set_data)
     
     def clone(self):
         out = self.__class__(self.name, self.attributes.copy())
