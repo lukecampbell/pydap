@@ -89,6 +89,9 @@ def add_attributes(dataset, attributes):
     Add attributes from a parsed DAS to a dataset.
 
     """
+    dataset.attributes['NC_GLOBAL'] = attributes.get('NC_GLOBAL', {})
+    dataset.attributes['DODS_EXTRA'] = attributes.get('DODS_EXTRA', {})
+
     for var in walk(dataset):
         # attributes can be flat, eg, "foo.bar" : {...}
         if var.id in attributes:
