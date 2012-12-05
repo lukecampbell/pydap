@@ -128,14 +128,6 @@ def base(var):
         else:
             yield length.newbyteorder('>').tostring() * 2
 
-    # make data iterable; 1D arrays must be converted to 2D, since iteration
-    # over 1D yields scalars which are not properly cast to big endian
-    if len(data.shape) < 2:
-        try:
-            data = data.reshape(1, -1)
-        except:
-            data = [data]
-
     # bytes are padded up to 4n
     if data.dtype == np.byte:
         length = np.prod(data.shape)
@@ -154,6 +146,14 @@ def base(var):
 
     # regular data
     else:
+        # make data iterable; 1D arrays must be converted to 2D, since iteration
+        # over 1D yields scalars which are not properly cast to big endian
+        if len(data.shape) < 2:
+            try:
+                data = data.reshape(1, -1)
+            except:
+                data = [data]
+
         for block in data:
             yield block.astype(typemap[block.dtype.char]).tostring()
 
