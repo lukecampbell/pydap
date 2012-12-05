@@ -252,6 +252,8 @@ class StructureType(DapType):
             raise KeyError('Key "%s" is different from variable name "%s"!' %
                 (key, item.name))
 
+        if key in self._keys:
+            self._keys.pop(self._keys.index(key))
         self._keys.append(key)
         self._dict[key] = item
         
