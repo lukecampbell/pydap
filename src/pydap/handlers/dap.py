@@ -9,6 +9,7 @@ from pydap.lib import encode, combine_slices, fix_slice, hyperslab, START_OF_SEQ
 from pydap.handlers.lib import ConstraintExpression, BaseHandler
 from pydap.parsers.dds import build_dataset
 from pydap.parsers.das import parse_das, add_attributes
+from pydap.parsers import parse_ce
 
 
 class DAPHandler(BaseHandler):
@@ -24,11 +25,24 @@ class DAPHandler(BaseHandler):
         self.dataset = build_dataset(dds)
         add_attributes(self.dataset, parse_das(das))
 
+        # remove any projection from the url, leaving selections
+        projection, selection = parse_ce(query)
+        url = urlunsplit((scheme, netloc, path, '&'.join(selection), fragment))
+
         # now add data proxies
         for var in walk(self.dataset, BaseType):
             var.data = BaseProxy(url, var.id, var.descr)
         for var in walk(self.dataset, SequenceType):
             var.data = SequenceProxy(url, var.id, var.descr)
+
+        # apply projections
+        for var in projection:
+            target = self.dataset
+            while var:
+                token, index = var.pop(0)
+                target = target[token]
+                if index and isinstance(target.data, BaseProxy):
+                    target.data.slice = fix_slice(index, target.shape)
 
 
 class BaseProxy(object):
