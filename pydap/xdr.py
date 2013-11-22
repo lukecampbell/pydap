@@ -16,10 +16,20 @@ class DapPacker(object):
 
     def __iter__(self):
         if isinstance(self.var, SequenceType):
-            for struct_ in self.var:
+            s = self.var
+            types = ['>%s%s' % (s[i].type.typecode, s[i].type.size) for i in s.keys()]
+            basetypes = [s[i].type.typecode for i in s.keys()]
+            for row in self.var.data:
                 yield START_OF_SEQUENCE
-                for line in DapPacker(struct_):
-                    yield line
+                line = []
+                for i,v in enumerate(row): # I want less yielding!
+                    if basetypes[i] == 'S':
+                        line.append(self._pack_string(v))
+                    elif basetypes[i] == 'B':
+                        line.append(self.pack_bytes(v))
+                    else:
+                        line.append(numpy.asanyarray(v).astype(types[i]).tostring())
+                yield ''.join(line)
             yield END_OF_SEQUENCE
         elif isinstance(self.var, StructureType):
             for child in self.var.walk():
@@ -66,6 +76,22 @@ class DapPacker(object):
         shape = getattr(self.var, 'shape', [1])
         length = numpy.prod(shape)
         return struct.pack('>L', long(length))
+
+    def pack_bytes(self, data):
+        s = numpy.asanyarray(data).astype('B').tostring()
+        if len(s) % 4:
+            s += '\0' * (4 - (len(s) % 4))
+        return s
+
+
+    def pack_string(self, s):
+        # Pack length first.
+        n = len(s)
+        length = struct.pack('>L', n)
+
+        padding = -n % 4
+        data = length + s + (padding * '\0')
+        return data
 
     def _pack_bytes(self, data):
         count = 0
@@ -184,3 +210,4 @@ class DapUnpacker(object):
             padding = -n % 4
             self._pos += padding
         return out
+
