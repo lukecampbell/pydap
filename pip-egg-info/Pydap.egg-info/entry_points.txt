@@ -1,0 +1,18 @@
+
+            [pydap.response]
+            dds = pydap.responses.dds:DDSResponse
+            das = pydap.responses.das:DASResponse
+            dods = pydap.responses.dods:DODSResponse
+            asc = pydap.responses.ascii:ASCIIResponse
+            ascii = pydap.responses.ascii:ASCIIResponse
+            ver = pydap.responses.version:VersionResponse
+            version = pydap.responses.version:VersionResponse
+            help = pydap.responses.help:HelpResponse
+            html = pydap.responses.html:HTMLResponse
+      
+            [paste.app_factory]
+            server = pydap.wsgi.file:make_app
+      
+            [paste.paster_create_template]
+            pydap = pydap.wsgi.templates:DapServerTemplate
+        

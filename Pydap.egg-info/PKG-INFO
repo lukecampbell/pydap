@@ -1,0 +1,31 @@
+Metadata-Version: 1.0
+Name: Pydap
+Version: 3.1.RC1
+Summary: Pure Python Opendap/DODS client and server.
+Home-page: http://pydap.org/
+Author: Roberto De Almeida
+Author-email: rob@pydap.org
+License: MIT
+Description: 
+        Pydap is an implementation of the Opendap/DODS protocol, written from
+        scratch. You can use Pydap to access scientific data on the internet
+        without having to download it; instead, you work with special array
+        and iterable objects that download data on-the-fly as necessary, saving
+        bandwidth and time. The module also comes with a robust-but-lightweight
+        Opendap server, implemented as a WSGI application.
+                
+Keywords: opendap dods dap data science climate oceanography meteorology
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Environment :: Web Environment
+Classifier: Framework :: Paste
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Topic :: Internet
+Classifier: Topic :: Internet :: WWW/HTTP :: WSGI
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
